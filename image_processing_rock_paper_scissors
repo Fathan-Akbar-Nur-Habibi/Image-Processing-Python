@@ -1,0 +1,138 @@
+!wget https://github.com/dicodingacademy/assets/releases/download/release/rockpaperscissors.zip
+!unzip rockpaperscissors.zip
+
+    
+import os
+import shutil
+import tensorflow as tf
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
+from sklearn.model_selection import train_test_split
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
+from google.colab import files
+from tensorflow.keras.preprocessing import image
+%matplotlib inline
+     
+
+base_dir = 'rockpaperscissors'
+train_dir = os.path.join(base_dir, 'train')
+validation_dir = os.path.join(base_dir, 'val')
+
+os.makedirs(train_dir, exist_ok=True)
+os.makedirs(validation_dir, exist_ok=True)
+     
+
+for cls in ['rock', 'paper', 'scissors']:
+    cls_dir = os.path.join(base_dir, cls)
+    train_cls_dir = os.path.join(train_dir, cls)
+    val_cls_dir = os.path.join(validation_dir, cls)
+    os.makedirs(train_cls_dir, exist_ok=True)
+    os.makedirs(val_cls_dir, exist_ok=True)
+
+    images = os.listdir(cls_dir)
+    train_images, val_images = train_test_split(images, test_size=0.4, random_state=42)
+
+
+    for img in train_images:
+        shutil.copy(os.path.join(cls_dir, img), os.path.join(train_cls_dir, img))
+    for img in val_images:
+        shutil.copy(os.path.join(cls_dir, img), os.path.join(val_cls_dir, img))
+     
+
+train_datagen = ImageDataGenerator(
+    rescale=1./255,
+    rotation_range=30,
+    width_shift_range=0.3,
+    height_shift_range=0.3,
+    shear_range=0.3,
+    zoom_range=0.3,
+    horizontal_flip=True,
+
+)
+
+validation_datagen = ImageDataGenerator(rescale=1./255)
+
+
+train_generator = train_datagen.flow_from_directory(
+    train_dir,
+    target_size=(100, 150),
+    batch_size=32,
+    class_mode='categorical'
+)
+
+validation_generator = validation_datagen.flow_from_directory(
+    validation_dir,
+    target_size=(100, 150),
+    batch_size=32,
+    class_mode='categorical'
+)
+     
+//Found 1312 images belonging to 3 classes.
+//Found 876 images belonging to 3 classes.
+
+model = Sequential([
+    Conv2D(64, (3,3), activation='relu', input_shape=(100, 150, 3)),
+    MaxPooling2D(2, 2),
+    Conv2D(128, (3,3), activation='relu'),
+    MaxPooling2D(2,2),
+    Conv2D(256, (3,3), activation='relu'),
+    MaxPooling2D(2,2),
+    Conv2D(512, (3,3), activation='relu'),
+    MaxPooling2D(2,2),
+    Flatten(),
+    Dropout(0.5),
+    Dense(1024, activation='relu'),
+    Dropout(0.5),
+    Dense(3, activation='softmax')
+])
+     
+
+model.compile(loss='categorical_crossentropy',
+              optimizer=Adam(learning_rate=0.001),
+              metrics=['accuracy'])
+
+early_stopping = EarlyStopping(monitor='val_accuracy', patience=5, restore_best_weights=True)
+
+reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=3, min_lr=0.0001)
+     
+
+history = model.fit(train_generator,
+                     steps_per_epoch=len(train_generator),
+                     epochs=20,
+                     validation_data=validation_generator,
+                     validation_steps=len(validation_generator),
+                    callbacks=[early_stopping, reduce_lr]
+)
+
+tf.keras.backend.clear_session()
+     
+
+uploaded = files.upload()
+
+for fn in uploaded.keys():
+
+
+  path = fn
+  img = image.load_img(path, target_size=(100,150))
+
+  imgplot = plt.imshow(img)
+  x = image.img_to_array(img)
+  x = np.expand_dims(x, axis=0)
+  images = np.vstack([x])
+
+  classes = model.predict(images, batch_size=10)
+  print(fn)
+  if classes[0,1]==1:
+   print('Rock')
+  elif classes[0,0]==1:
+   print('Paper')
+  elif classes[0,2]==1:
+   print('Scissor')
+  else:
+   print('None')
+     
